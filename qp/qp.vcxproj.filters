@@ -26,5 +26,8 @@
     <ClInclude Include="qp_abstract.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="sqp.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

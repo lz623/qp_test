@@ -1,3 +1,4 @@
+#pragma once
 #include <cassert>
 #include <CGAL/basic.h>
 #include <CGAL/QP_models.h>
@@ -22,14 +23,16 @@ class QP_problem
 {
 public:
 	QP_problem(unsigned nv,unsigned ncs) :num_var(nv),
-		num_cs(ncs),qp(CGAL::SMALLER, true, 0, false, 0)
+		num_cs(ncs),qp(CGAL::LARGER, true, 0, false, 0)
 	{}
 	matrix solve();
-	void assign_A(matrix &A);
-	void assign_A(std::vector<matrix> &A);
-	void assign_b(matrix &b);
-	void assign_D(matrix &D);
-	void assign_c(matrix &c);
+	void assign_A(const matrix &A);
+	void assign_A(const std::vector<matrix> &A);
+	void assign_b(const matrix &b);
+	void assign_D(const matrix &D);
+	void assign_c(const matrix &c);
+	matrix solve_qp(const std::vector<matrix> &A,
+		const matrix &b, const matrix &D, const matrix& c);
 private:
 	void get_solution(Solution &s, std::vector<double> &solution);
 	void get_solution(Solution &s, matrix &solution);
