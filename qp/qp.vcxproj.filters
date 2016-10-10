@@ -5,29 +5,38 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Constrain_optimization">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="qp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="qp_impl.cpp">
+      <Filter>Constrain_optimization</Filter>
+    </ClCompile>
+    <ClCompile Include="qp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="qp_abstract.hpp">
-      <Filter>Header Files</Filter>
+      <Filter>Constrain_optimization</Filter>
+    </ClInclude>
+    <ClInclude Include="constrain_opt_AL.hpp">
+      <Filter>Constrain_optimization</Filter>
+    </ClInclude>
+    <ClInclude Include="constrain_opt_AL_imp.hpp">
+      <Filter>Constrain_optimization</Filter>
+    </ClInclude>
+    <ClInclude Include="optimize.hpp">
+      <Filter>Constrain_optimization</Filter>
     </ClInclude>
     <ClInclude Include="sqp.hpp">
-      <Filter>Source Files</Filter>
+      <Filter>Constrain_optimization</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
