@@ -33,6 +33,8 @@ public:
 	void assign_c(const matrix &c);
 	matrix solve_qp(const std::vector<matrix> &A,
 		const matrix &b, const matrix &D, const matrix& c);
+	matrix solve_qp(const matrix&A,
+		const matrix &b, const matrix &D, const matrix& c);
 private:
 	void get_solution(Solution &s, std::vector<double> &solution);
 	void get_solution(Solution &s, matrix &solution);

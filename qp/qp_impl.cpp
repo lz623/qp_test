@@ -9,6 +9,15 @@ matrix QP_problem::solve_qp(const std::vector<matrix> &A,
 	assign_D(D);
 	return solve();
 }
+matrix QP_problem::solve_qp(const matrix&A,
+	const matrix &b, const matrix &D, const matrix& c)
+{
+	assign_A(A);
+	assign_b(b);
+	assign_c(c);
+	assign_D(D);
+	return solve();
+}
 matrix QP_problem::solve()
 {
 	matrix solution;
@@ -54,11 +63,13 @@ void QP_problem::assign_b(const matrix &b){
 	}
 }
 void QP_problem::assign_D(const matrix &D){
-	for (int i = 0; i < D.nr(); i++){
+
 		for (int j = 0; j < D.nc(); j++){
-			qp.set_d(i, j, D(i, j));
+			for (int i = j; i < D.nr(); i++){
+				qp.set_d(i, j, D(i, j));
+			}
 		}
-	}
+
 }
 void QP_problem::assign_c(const matrix &c){
 	for (int i = 0; i < c.nr(); i++){

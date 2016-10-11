@@ -42,9 +42,6 @@ private:
 	double compute_validation();
 	void update_larange_lamda();
 	void update_larange_miu();
-	void load_matrix(std::string filename, matrix &m);
-
-
 
 	double sign_function(const double &lamda, const double &miu, const double &val){
 		double res(0);
@@ -65,7 +62,6 @@ public:
 		:x(startpoint),num_CS(Ncs), num_Var(startpoint.nr()), output_flag(output_i),
 		omega_f_final(delta_f), omega_x_final(delta_x), eta_final(eta_final), alpha(0.1), model(startpoint.nr(), Ncs)
 		, beta(0.9), w(0.5){	
-		load_matrix("input/constrain/lamda.dat", lamda);
 		initial_parameter();
 	}
 	dlib::matrix<double> larangian_funct();
@@ -78,7 +74,9 @@ template<typename simulator>
  double AL<simulator>::constrain_funct(const matrix &x)
 {
 	double result;
-	result = model.run(x) + compute_constrain(x);
+	
+	result = model.run(x);
+	result += compute_constrain(x);
 	return result;
 }
 
@@ -204,21 +202,5 @@ double AL<simulator>::compute_constrain(const matrix &x)
 	return dlib::sum(sign_val);
 }
 
-
- template<typename simulator>
- void AL<simulator>::load_matrix(std::string filename, matrix &m)
- {
-	 std::ifstream input(filename);
-	 unsigned nc, nr;
-	 input >> nr;
-	 input >> nc;
-	 m.set_size(nr, nc);
-	 m = 0;
-	 for (unsigned j = 0; j < nr; j++){
-		 for (unsigned i = 0; i < nc; i++){
-			 input >> m(j, i);
-		 }
-	 }
- };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

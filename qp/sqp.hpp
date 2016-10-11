@@ -1,50 +1,64 @@
+#pragma once
 #include "qp_abstract.hpp"
 #include "dlib/optimization/optimization_search_strategies.h"
-
+#include "dlib/optimization/optimization_stop_strategies.h"
+#include "optimize.hpp"
 template<typename simulator>
 class SQP
 {
 	typedef dlib::matrix<double> matrix;
 private:
 	unsigned num_Var, num_CS;
-	matrix lamda,x;
+	matrix lamda, x, x_up1;
 	simulator model;
 	QP_problem qp_solver;
 	dlib::bfgs_search_strategy  BFGS;
+	dlib::x_delta_stop_strategy stop_criterion;
 	matrix delta;
 	double alpha;
-	const double coverge_c;
-	matrix grad(num_Var, 1);
+	double f_value;
+	double last_alpha;
+	matrix grad, g; //grad is gradient for constrain function, g is gradient for model
+	optimization opt;
 
 	void initial_parameters();
 	void update_lamda();
-	double constrain_funct(const matrix &x);
-	matrix constrain_grad(const matrix &x);
 	double compute_constrain();
 	void compute_delta();
 	void comput_alpha();
-
-	matrix extract_active_set();
+	bool within_tolerance(double x1, double x2, double toler = 1e-5);
+	matrix 	extract_active_set(matrix &delta);
 public:
 	SQP(matrix &startpoint, unsigned ncs,double conc=1e-5) :num_Var(startpoint.nr()), num_Cs(ncs)
-		, x(startpoint), qp_solver(startpoint.nr(), ncs), coverge_c(conc){
+		, x(startpoint), qp_solver(startpoint.nr(), ncs), model(startpoint.nr(), ncs), stop_criterion(conc){
 		initial_parameters();
 	}
+
 	matrix solve_SQP();
+	double constrain_funct( matrix &x);
+	matrix constrain_grad(matrix &x);
 };
 
-
+template<typename simulator>
+void SQP<simulator>::initial_parameters(){
+	alpha = 0.1;
+	last_alpha = 0.1;
+	lamda.set_size(num_CS, 1);
+	x_up1.set_size(num_Var, 1);
+	delta.set_size(num_Var, 1);
+	grad.set_size(num_Var, 1), g.set_size(num_Var, 1);
+}
 
 template<typename simulator>
-matrix SQP<simulator>::constrain_grad(const matrix &x)
+matrix SQP<simulator>::constrain_grad( matrix &x)
 {
 	std::vector<dlib::matrix<double>> CS_gradient;
-	grad = 0;
-	compute_constrain(x);
-	grad = model.grad(x);
+	g = 0;
+	g = model.grad(x);
+	grad = g;
 	for (unsigned i = 0; i < num_CS; i++){
 		if (model.val(i)<0){
-			grad += lamda(i)*model.CS_gradient[i];
+			grad +=-lamda(i)*model.CS_gradient[i];
 		}
 	}
 	return grad;
@@ -52,38 +66,81 @@ matrix SQP<simulator>::constrain_grad(const matrix &x)
 
 
 template<typename simulator>
-double SQP<simulator>::constrain_funct(const matrix &x)
+double SQP<simulator>::constrain_funct( matrix &x)
 {
 	double result;
-	result = model.run(x) + dot(lamda,model.val);
+	result = model.run(x);
+	model.compute_constrain(x);
+	result+=dot(lamda, model.val);
 	return result;
 }
 
 template<typename simulator>
 void SQP<simulator>::compute_delta()
 {
-	double f_value = constrain_funct(x);
-	matrix Y = BFGS.get_next_direction(x, model.f_value, constrain_grad(x));
-	delta=qp_solver.solve_qp(model.CS_gradient,-model.val,Y,grad);
-	update_lamda();
+	f_value = constrain_funct(x);
+	grad=constrain_grad(x);
+	matrix Y = BFGS.get_next_direction(x, model.f_value, grad);
+	delta=qp_solver.solve_qp(model.CS_gradient,-model.val,Y,g);
 }
 
 template<typename simulator>
 void SQP<simulator>::update_lamda()
 {
-	matrix A_a=extract_active_set();
-	//check if the matrix computation valid £¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡
-	lamda = inv(A_a*trans(A_a))*A_a*(Y*delta+grad);
+	//use x_up1 to compute active set this time
+	matrix A_a = extract_active_set(delta);
+	//check the dimensional matrix computation valid £¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡£¡
+	lamda = inv(A_a*trans(A_a))*A_a*(Y*delta+g);
 }
 
 
 template<typename simulator>
-matrix SQP<simulator>:: extract_active_set(){
+matrix SQP<simulator>::extract_active_set(matrix &delta){
+	std::vector<matrix> active_A;  //Don't know why no response;
+	double c;
+	for (unsigned i = 0; i < num_CS; i++){
+		c = model.CS_gradient[i] * delta;
+		if (within_tolerance(c,-model.val(i))){
+			active_A.push_back(model.CS_gradient[i]);
+		}
+	}
+	matrix A_a(active_A.size(),num_Var);
+	for (int i = 0; i < active_A.size();i++){
+		set_rowm(A_a, i) = active_A[i];
+	}
 
+}
+
+template<typename simulator>
+bool SQP<simulator>::within_tolerance(double x1,double x2,double toler=1e-5){
+	return if (abs(x1-x2)<toler);
 }
 
 template<typename simulator>
 void SQP<simulator>::comput_alpha(){
 	//Use the method proposed in Practical Optimization Andreas p510
+	double alpha1, alpha2;
+	alpha1 = opt.backtracking_line_search_new(
+		*this, x, delta,
+		f_value,
+		dot(grad, delta), // compute gradient for the line search
+		last_alpha_,
+		BFGS.get_wolfe_rho(),
+		BFGS.get_max_line_search_iterations());
+	alpha=0.95*alpha1
+	//alpha_ = 0.95*min(alpha1,alpha2);
+}
 
+template<typename simulator>
+matrix SQP<simulator>::solve_SQP(){
+	while (stop_criterion.should_continue_search(x))
+	{
+		compute_delta();
+		update_lamda();
+		comput_alpha();
+		delta = alpha*delta;
+		update_lamda();
+		x = x + delta;
+		last_alpha = alpha;
+	}
 }

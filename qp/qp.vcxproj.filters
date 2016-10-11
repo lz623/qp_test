@@ -29,9 +29,6 @@
     <ClInclude Include="constrain_opt_AL.hpp">
       <Filter>Constrain_optimization</Filter>
     </ClInclude>
-    <ClInclude Include="constrain_opt_AL_imp.hpp">
-      <Filter>Constrain_optimization</Filter>
-    </ClInclude>
     <ClInclude Include="optimize.hpp">
       <Filter>Constrain_optimization</Filter>
     </ClInclude>
