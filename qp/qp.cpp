@@ -76,11 +76,9 @@ public:
 	{
 		std::ifstream input("input/constrain/cs_gradient.dat");
 		CS_gradient.resize(num_Cs);
-		for (unsigned i = 0; i <CS_gradient.size(); i++)
-		{
+		for (unsigned i = 0; i <CS_gradient.size(); i++){
 			CS_gradient[i].set_size(num_Var, 1);
-			for (unsigned j = 0; j < num_Var; j++)
-			{
+			for (unsigned j = 0; j < num_Var; j++){
 				input >> CS_gradient[i](j, 0);
 			}
 		}
@@ -88,8 +86,7 @@ public:
 	void compute_constrain(dlib::matrix<double> m)
 	{
 		//should include simulation run in reservoir simulator
-		for (unsigned i = 0; i < num_Cs; i++)
-		{
+		for (unsigned i = 0; i < num_Cs; i++){
 			val(i) = (rowm(CS, i)*m + CS_val(i)) / abs(CS_range(i));
 		}
 	}
@@ -108,33 +105,24 @@ int main() {
 	dlib::matrix<double> result = test.larangian_funct();
 	std::cout << result << std::endl;
 	// by default, we have a nonnegative QP with Ax <= b
-	Program qp(CGAL::LARGER, true, 0, false, 0);
-	// now set the non-default entries: 
-	const double X = 0.1;
-	const double Y = 1.5;
-	qp.set_a(0, 0, X); qp.set_a(1,0, Y); qp.set_b(0, 7.5);  //  x + y  <= 7
-	qp.set_a(0, 1, -1); qp.set_a(1, 1, 2); qp.set_b(1, 4);  // -x + 2y <= 4
-	//qp.set_u(Y, true, 4);                                   //       y <= 4
-	qp.set_d(0, 0, 2); qp.set_d(1, 1, 8); // !!specify 2D!!    x^2 + 4 y^2
-	qp.set_c(1, -32);                                       // -32y
-	//qp.set_c0(64);
-	// +64
-	Solution s = CGAL::solve_quadratic_program(qp, ET());
-	assert(s.solves_quadratic_program(qp));
-	std::vector<double> x;
-	assign_vector(s, x);
-	std::cout << s << std::endl;
 
-	QP_problem qp_solver(2,2);
-	dlib::matrix<double> A(2, 2), b(2, 1), c(2, 1), D(2, 2);
-	A = 1, -1,
-		1, 2;
-	b = 7,
-		4;
-	c = 0,
-		-32;
-	D = 2, 0,
-		0, 8;
+	SQP<rosen_model> sqp_solver(starting_point,4);
+	sqp_solver.solve_SQP();
+	QP_problem qp_solver(2,4);
+	dlib::matrix<double> A(4, 2), b(4, 1), c(2, 1), D(2, 2);
+	A = 1, 0,
+		-1, 0,
+		0, 1,
+		0, -1;
+	A = trans(A);
+	c = 596,
+		300;
+	b = 0,
+		-1,
+		-2,
+		0;
+	D = 1, 0,
+		0, 1;
 	std::cout << qp_solver.solve_qp(A, b, D,c) << std::endl;
 	// solve the program, using ET as the exact type
 

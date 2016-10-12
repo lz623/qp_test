@@ -23,7 +23,7 @@ class QP_problem
 {
 public:
 	QP_problem(unsigned nv,unsigned ncs) :num_var(nv),
-		num_cs(ncs),qp(CGAL::LARGER, true, 0, false, 0)
+		num_cs(ncs), qp(CGAL::LARGER, false, 0, false, 0)
 	{}
 	matrix solve();
 	void assign_A(const matrix &A);

@@ -44,6 +44,7 @@ void QP_problem::vector_to_matrix(std::vector<double> &v, matrix &m){
 
 
 void QP_problem::assign_A(const matrix &A){
+	//N_var*N_cs matrix
 	for (int i = 0; i < A.nr(); i++){
 		for (int j = 0; j < A.nc(); j++){
 			qp.set_a(i, j, A(i, j));
@@ -51,9 +52,10 @@ void QP_problem::assign_A(const matrix &A){
 	}
 }
 void QP_problem::assign_A(const std::vector<matrix> &A){
+	//N_var*N_cs matrix
 	for (int i = 0; i < A.size(); i++){
 		for (int j = 0; j < A[i].nr(); j++){
-			qp.set_a(i, j, A[i](j,0));
+			qp.set_a(j, i, A[i](j,0));
 		}
 	}
 }

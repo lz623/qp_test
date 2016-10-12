@@ -36,7 +36,7 @@ public:
 		T g, s;
 		double f_value = model.constrain_funct(x);
 		g = model.constrain_grad(x);
-		double last_alpha = 0.1;
+		double last_alpha = 0.081;
 		stop_strategy_1.set_used(x);
 		while (stop_strategy.should_continue_search(x, f_value, g) 
 			|| stop_strategy_1.should_continue_search(x, f_value, g))
