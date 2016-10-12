@@ -44,11 +44,14 @@ class rosen_model
 {
 
 private:
-	unsigned num_Cs, num_Var;
+
+	int num_Cs, num_Var;
 	dlib::matrix<double> CS, CS_val, CS_range;
 public:
-
+	 unsigned num_fcall, num_gcall;
 	rosen_model(unsigned nv, unsigned ncs) :num_Var(nv), num_Cs(ncs){
+		num_fcall = 0;
+		num_gcall = 0;
 		load_cs_gradient();
 		load_matrix("input/constrain/constrain.dat", CS);
 		load_matrix("input/constrain/constrain_val.dat", CS_val);
@@ -60,7 +63,9 @@ public:
 		const double x = m(0, 0);
 		const double y = m(1, 0);
 		// compute Rosenbrock's function and return the result
+		num_fcall++;
 		return 100.0*pow(y - x*x, 2) + pow(1 - x, 2);
+
 	};
 
 	const dlib::matrix<double> grad(const dlib::matrix<double>& m){
@@ -69,6 +74,7 @@ public:
 		dlib::matrix<double> res(2, 1);
 		res(0, 0) = -400 * x*(y - x*x) - 2 * (1 - x); // derivative of rosen() with respect to x
 		res(1, 0) = 200 * (y - x*x);              // derivative of rosen() with respect to y
+		num_gcall++;
 		return res;
 	}
 
@@ -107,23 +113,8 @@ int main() {
 	// by default, we have a nonnegative QP with Ax <= b
 
 	SQP<rosen_model> sqp_solver(starting_point,4);
-	sqp_solver.solve_SQP();
-	QP_problem qp_solver(2,4);
-	dlib::matrix<double> A(4, 2), b(4, 1), c(2, 1), D(2, 2);
-	A = 1, 0,
-		-1, 0,
-		0, 1,
-		0, -1;
-	A = trans(A);
-	c = 596,
-		300;
-	b = 0,
-		-1,
-		-2,
-		0;
-	D = 1, 0,
-		0, 1;
-	std::cout << qp_solver.solve_qp(A, b, D,c) << std::endl;
+	std::cout << sqp_solver.solve_SQP();
+
 	// solve the program, using ET as the exact type
 
 	// output solution

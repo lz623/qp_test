@@ -36,7 +36,7 @@ public:
 		T g, s;
 		double f_value = model.constrain_funct(x);
 		g = model.constrain_grad(x);
-		double last_alpha = 0.081;
+		double last_alpha = 0.1;
 		stop_strategy_1.set_used(x);
 		while (stop_strategy.should_continue_search(x, f_value, g) 
 			|| stop_strategy_1.should_continue_search(x, f_value, g))
@@ -67,52 +67,6 @@ public:
 		}
 		return f_value;
 	}
-
-	template <
-		typename search_strategy_type,
-		typename stop_strategy_type,
-		typename funct,
-		typename funct_der,
-		typename T
-	>
-	double find_min(
-	search_strategy_type search_strategy,
-	stop_strategy_type stop_strategy,
-	funct& f,
-	funct_der& der,
-	T& x
-	)
-	{
-		T g, s;
-		double f_value = f(x);
-		g = der(x);
-		double last_alpha = 1;
-		while (stop_strategy.should_continue_search(x, f_value, g))
-		{
-			s = search_strategy.get_next_direction(x, f_value, g);
-
-			double alpha = backtracking_line_search(
-				make_line_search_function(f, x, s, f_value),
-				f_value,
-				dot(g, s), // compute gradient for the line search
-				last_alpha,
-				search_strategy.get_wolfe_rho(),
-				search_strategy.get_max_line_search_iterations());
-
-			if (alpha == last_alpha)
-				last_alpha = std::min(last_alpha * 10, 1.0);
-			else
-				last_alpha = alpha;
-			// Take the search step indicated by the above line search
-			x += alpha*s;
-			g = der(x);
-		}
-		return f_value;
-	}
-
-
-
-
 
 	template <typename model>
 	double backtracking_line_search_new(
@@ -259,6 +213,7 @@ public:
 		// now make sure the minimum is within the allowed range of (0,1) 
 		return put_in_range(0, 1, alpha);
 	}
+
 //
 //private:
 //	std::ofstream output1;

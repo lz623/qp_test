@@ -42,8 +42,8 @@ public:
 
 template<typename simulator>
 void SQP<simulator>::initial_parameters(){
-	alpha = 0.1;
-	last_alpha = 0.1;
+	alpha = 1;
+	last_alpha = 1;
 	lamda.set_size(num_CS, 1);
 	lamda = 0;
 	x_up1.set_size(num_Var, 1);
@@ -60,8 +60,8 @@ matrix SQP<simulator>::constrain_grad(const matrix &x)
 	g = model.grad(x);
 	grad = g;
 	for (unsigned i = 0; i < num_CS; i++){
-		if (model.val(i)<0){
-			grad +=-lamda(i)*model.CS_gradient[i];
+		if (model.val(i) < 0){
+			grad += -lamda(i)*model.CS_gradient[i];
 		}
 	}
 	return grad;
@@ -74,7 +74,7 @@ double SQP<simulator>::constrain_funct(const matrix &x)
 	double result;
 	result = model.run(x);
 	model.compute_constrain(x);
-	result+=dot(lamda, model.val);
+	result-=dot(lamda, model.val);
 	return result;
 }
 
@@ -83,7 +83,7 @@ void SQP<simulator>::compute_delta()
 {
 	f_value = constrain_funct(x);
 	grad=constrain_grad(x);
-	Y = BFGS.get_Hessian(x, f_value, grad);
+	Y = BFGS.get_Hessian_new(x, f_value, grad);
 	delta=qp_solver.solve_qp(model.CS_gradient,-model.val,Y,g);
 }
 
@@ -92,10 +92,13 @@ void SQP<simulator>::update_lamda()
 {
 	//use x_up1 to compute active set this time
 	matrix A_a = extract_active_set(delta);
-	lamda = 0;
-	matrix lamda_act = inv(A_a*trans(A_a))*A_a*(Y*delta+g);
-	for (unsigned i = 0; i < active_index.size();i++){
-		lamda(active_index[i], 0) = lamda_act(i,0);
+	lamda = 0; 
+	if (A_a.nr()!=0)
+	{
+		matrix lamda_act = inv(A_a*trans(A_a))*A_a*(Y*delta + g);
+		for (unsigned i = 0; i < active_index.size(); i++){
+			lamda(active_index[i], 0) = lamda_act(i, 0);
+		}
 	}
 	active_index.clear();
 }
@@ -136,8 +139,8 @@ void SQP<simulator>::comput_alpha(){
 		dot(grad, delta), // compute gradient for the line search
 		last_alpha,
 		BFGS.get_wolfe_rho(),
-		BFGS.get_max_line_search_iterations());
-	alpha = 0.95*alpha1;
+			BFGS.get_max_line_search_iterations());
+	//alpha = 0.95*alpha1;
 	//alpha_ = 0.95*min(alpha1,alpha2);
 }
 
@@ -146,14 +149,15 @@ matrix SQP<simulator>::solve_SQP(){
 	while (stop_criterion.should_continue_search(x))
 	{
 		compute_delta();
-		update_lamda();
 		comput_alpha();
+		update_lamda();
 		delta = alpha*delta;
 		update_lamda();
 		x = x + delta;
 		last_alpha = alpha;
-		std::cout << x << std::endl;
-		std::cout << lamda << std::endl;
 	}
+	std::cout << lamda << std::endl;
+	std::cout << model.val << std::endl;
+	std::cout << x << std::endl;
 	return x;
 }
