@@ -3,67 +3,95 @@
 #include "dlib/optimization/optimization_search_strategies.h"
 #include "dlib/optimization/optimization_stop_strategies.h"
 #include "optimize.hpp"
+#include <algorithm>
+#include <stdexcept>
 template<typename simulator>
 class SQP
 {
 	typedef dlib::matrix<double> matrix;
 private:
 	unsigned num_Var, num_CS;
-	matrix lamda, x, x_up1;
+	matrix lamda,qp_lamda,miu ,x;
 	simulator model;
 	QP_problem qp_solver;
 	dlib::bfgs_search_strategy  BFGS;
 	dlib::x_delta_stop_strategy stop_criterion;
-	std::vector<unsigned> active_index;
-	matrix delta;
-	double alpha;
-	double f_value;
+	std::vector<int> active_index, inactive_index, mactive_index, minactive_index;
+	matrix delta,gamma;
+	double alpha,min_alpha;
+	double f_value,f_original,z_value,z_grad,z_step;
+	double nit;
 	double last_alpha;
-	matrix grad, g,Y; //grad is gradient for constrain function, g is gradient for model
+	bool been_used,output_res,powell_BFGS;
+	matrix grad, g,Y,g_old; //grad is gradient for constrain function, g is gradient for model
 	optimization opt;
+	std::vector<dlib::matrix<double>> CSo_gradient;
 
 	void initial_parameters();
-	void update_lamda();
+	void update_lamda(matrix &lamda);
 	double compute_constrain();
 	void compute_delta();
 	void comput_alpha();
 	bool active_cs(double x1, double x2, double toler = 1e-5);
-	matrix 	extract_active_set(matrix &delta);
+	bool active_cs_1(double lamda, double miu, double r);
+	matrix extract_active_set(matrix &delta);
+	void extract_all_set(const matrix &delta, matrix &A_a
+		,matrix &A_i,std::vector<int> &active_index, std::vector<int> &inactive_index);
+	void merit();
+	double merit_value();
+	double merit_grad();
+	void compute_penelty();
+	void get_Hessian(const matrix& delta, matrix& gamma);
 public:
-	SQP(matrix &startpoint, unsigned ncs,double conc=1e-5) :num_Var(startpoint.nr()), num_CS(ncs)
-		, x(startpoint), qp_solver(startpoint.nr(), ncs), model(startpoint.nr(), ncs), stop_criterion(conc){
+	SQP(matrix &startpoint, unsigned ncs, double conc = 1e-5, bool output_flag = false, bool powell_flag = false)
+		:num_Var(startpoint.nr()), num_CS(ncs), x(startpoint), qp_solver(startpoint.nr(), ncs),
+		model(startpoint.nr(), ncs), stop_criterion(conc), output_res(output_flag), powell_BFGS(powell_flag)
+	{
 		initial_parameters();
 	}
 
 	matrix solve_SQP();
 	double constrain_funct(const matrix &x);
-	matrix constrain_grad(const matrix &x);
+	double constrain_funct(double fvalue);
+	matrix constrain_grad(const matrix &x,double &fvalue);
 };
 
 template<typename simulator>
 void SQP<simulator>::initial_parameters(){
 	alpha = 1;
+	min_alpha = 1e-5;
 	last_alpha = 1;
 	lamda.set_size(num_CS, 1);
+	qp_lamda.set_size(num_CS, 1);
+	miu.set_size(num_CS, 1);
+	miu = 1e-2;
 	lamda = 0;
-	x_up1.set_size(num_Var, 1);
 	delta.set_size(num_Var, 1);
+	gamma.set_size(num_Var, 1);
 	grad.set_size(num_Var, 1), g.set_size(num_Var, 1);
 	Y.set_size(num_Var, num_Var);
+	CSo_gradient.resize(num_CS);
+	for (unsigned i = 0; i < num_CS; i++)
+		CSo_gradient[i].set_size(num_Var, 1);
+	g_old.set_size(num_Var, 1);
 }
 
 template<typename simulator>
-matrix SQP<simulator>::constrain_grad(const matrix &x)
+matrix SQP<simulator>::constrain_grad(const matrix &x,double &f_value)
 {
-	std::vector<dlib::matrix<double>> CS_gradient;
-	g = 0;
 	g = model.grad(x);
+	f_original = model.f_value;
+	f_value = f_original + constrain_funct(x);
+	gamma = g - g_old;
 	grad = g;
 	for (unsigned i = 0; i < num_CS; i++){
 		if (model.val(i) < 0){
 			grad += -lamda(i)*model.CS_gradient[i];
+			gamma += -lamda(i)*(model.CS_gradient[i] - CSo_gradient[i]);
 		}
+		CSo_gradient[i] = model.CS_gradient[i];
 	}
+	g_old = g;
 	return grad;
 }
 
@@ -72,35 +100,46 @@ template<typename simulator>
 double SQP<simulator>::constrain_funct(const matrix &x)
 {
 	double result;
-	result = model.run(x);
+	f_original = model.run(x);
 	model.compute_constrain(x);
-	result-=dot(lamda, model.val);
+	result = f_original-dot(lamda, model.val);
 	return result;
 }
-
+template<typename simulator>
+double SQP<simulator>::constrain_funct(double fvalue)
+{
+	double result(fvalue);
+	model.compute_constrain(x);
+	result -= dot(lamda, model.val);
+	return result;
+}
 template<typename simulator>
 void SQP<simulator>::compute_delta()
 {
-	f_value = constrain_funct(x);
-	grad=constrain_grad(x);
-	Y = BFGS.get_Hessian_new(x, f_value, grad);
+	grad = constrain_grad(x, f_value);
+	get_Hessian(delta,gamma);
 	delta=qp_solver.solve_qp(model.CS_gradient,-model.val,Y,g);
+	update_lamda(qp_lamda);
+	merit();
+	if (z_grad > 0)
+		throw std::invalid_argument("Bad search direction from QP");
+
 }
 
 template<typename simulator>
-void SQP<simulator>::update_lamda()
+void SQP<simulator>::update_lamda(matrix &lamda)
 {
 	//use x_up1 to compute active set this time
-	matrix A_a = extract_active_set(delta);
-	lamda = 0; 
-	if (A_a.nr()!=0)
+	matrix A_a=	extract_active_set(delta);
+	lamda = 0;
+	if (active_index.size()!=0)
 	{
 		matrix lamda_act = inv(A_a*trans(A_a))*A_a*(Y*delta + g);
 		for (unsigned i = 0; i < active_index.size(); i++){
-			lamda(active_index[i], 0) = lamda_act(i, 0);
+			lamda(active_index[i], 0) = abs(lamda_act(i, 0));
 		}
 	}
-	active_index.clear();
+
 }
 
 
@@ -108,6 +147,7 @@ template<typename simulator>
 matrix SQP<simulator>::extract_active_set(matrix &delta){
 	std::vector<matrix> active_A;  //Don't know why no response;
 	double c;
+	active_index.clear();
 	for (unsigned i = 0; i < num_CS; i++){
 		matrix cv = model.CS_gradient[i] * trans(delta);
 		c = cv(0,0);
@@ -126,38 +166,181 @@ matrix SQP<simulator>::extract_active_set(matrix &delta){
 
 template<typename simulator>
 bool SQP<simulator>::active_cs(double x1, double x2, double toler = 1e-5){
-	return (abs(x1+x2)<toler);
+	return ((x1+x2)<toler);
+}
+template<typename simulator>
+bool SQP<simulator>::active_cs_1(double lamda,double miu,double c){
+	return (lamda/miu>=c);
 }
 
 template<typename simulator>
 void SQP<simulator>::comput_alpha(){
 	//Use the method proposed in Practical Optimization Andreas p510
-	double alpha1;
-	alpha1 = opt.backtracking_line_search_new(
-		*this, x, delta,
-		f_value,
-		dot(grad, delta), // compute gradient for the line search
-		last_alpha,
-		BFGS.get_wolfe_rho(),
-			BFGS.get_max_line_search_iterations());
-	//alpha = 0.95*alpha1;
-	//alpha_ = 0.95*min(alpha1,alpha2);
+	double rho(1e-4),a_2;
+	alpha = 1;
+	matrix x_n = x + alpha*delta;
+	matrix lamda_old = lamda;
+	lamda = qp_lamda;
+	constrain_funct(x_n);
+	z_step=merit_value();
+	while (z_step>z_value+rho*alpha*z_grad
+		||alpha<min_alpha)
+	{
+		a_2 = ((z_step - z_value) / alpha - z_grad) / alpha;
+		alpha = std::max(0.1*alpha, -z_grad/(2*a_2));
+		x_n = x + alpha*delta;
+		//std::cout << " v " << std::endl << lamda << std::endl;
+		//std::cout << " u " << std::endl << qp_lamda << std::endl;
+		//std::cout << " v " << std::endl << lamda << std::endl;
+		constrain_funct(x_n);
+		z_step = merit_value();
+		lamda = lamda_old + alpha*(qp_lamda - lamda_old);
+	} 
+
 }
 
 template<typename simulator>
 matrix SQP<simulator>::solve_SQP(){
+	unsigned i=0;
+	nit=0;
 	while (stop_criterion.should_continue_search(x))
 	{
+		nit++;
 		compute_delta();
 		comput_alpha();
-		update_lamda();
 		delta = alpha*delta;
-		update_lamda();
 		x = x + delta;
-		last_alpha = alpha;
+		std::cout << i++ << std::endl << z_value << std::endl;
 	}
-	std::cout << lamda << std::endl;
-	std::cout << model.val << std::endl;
-	std::cout << x << std::endl;
 	return x;
+}
+
+template<typename simulator>
+void SQP<simulator>::extract_all_set(const matrix &delta, matrix &A_a
+	, matrix &A_i, std::vector<int> &active_index, std::vector<int> &inactive_index){
+	double c;
+	active_index.clear();
+	inactive_index.clear();
+	for (unsigned i = 0; i < num_CS; i++){
+		matrix cv = model.CS_gradient[i] * trans(delta);
+		c = cv(0, 0);
+		if (active_cs(lamda(i),miu(i),model.val(i))){
+			active_index.push_back(i);
+		}
+		else{
+			inactive_index.push_back(i);
+		}
+	}
+	//N_acs*Nvar matrix
+	A_a.set_size(active_index.size(), num_Var);
+	A_i.set_size(inactive_index.size(), num_Var);
+	for (int i = 0; i < active_index.size(); i++){
+		set_rowm(A_a, i) = trans(model.CS_gradient[active_index[i]]);
+	}
+	for (int i = 0; i < inactive_index.size(); i++){
+		set_rowm(A_i, i) = trans(model.CS_gradient[inactive_index[i]]);
+	}
+}
+
+
+template<typename simulator>
+void SQP<simulator>::merit()
+{
+	matrix Ai, Aa;
+	compute_penelty();
+	z_value=merit_value();
+	z_grad=merit_grad();
+}
+
+
+
+template<typename simulator>
+double SQP<simulator>::merit_grad()
+{
+	double tmp(0),tmp1(0);
+	matrix grad2 = g;
+	int a, ia;
+	for (unsigned i = 0; i < mactive_index.size(); i++){
+		a = mactive_index[i];
+		grad2 += (lamda(a)-miu(a)*model.val(a))*(-model.CS_gradient[a]);
+		tmp = model.val(a)*(qp_lamda(a)-lamda(a));
+	}
+	for (unsigned i = 0; i <minactive_index.size(); i++){
+		ia = minactive_index[i];
+		tmp1 = lamda(ia) / miu(ia)*(qp_lamda(ia) - lamda(ia));
+	}
+	return trans(grad2)*delta - tmp1 - tmp;
+};
+
+template<typename simulator>
+double SQP<simulator>::merit_value()
+{
+	int a, ia;
+	double res = f_original;
+	mactive_index.clear();
+	minactive_index.clear();
+	for (unsigned i = 0; i <num_CS; i++)
+	{
+		if (active_cs_1(lamda(i), miu(i), model.val(i))){
+			mactive_index.push_back(i);
+		}
+		else{
+			minactive_index.push_back(i);
+		}
+	}
+	for (unsigned i = 0; i <mactive_index.size() ;i++){
+		a = mactive_index[i];
+		res-=lamda(a)*model.val(a) + 0.5*miu(a)*model.val(a)*model.val(a);
+	}
+	for (unsigned i = 0; i <minactive_index.size(); i++){
+		ia = minactive_index[i];
+		res -= 0.5*lamda(ia)*lamda(ia) / miu(ia);
+	}
+	return res;
+};
+
+template<typename simulator>
+void SQP<simulator>::compute_penelty()
+{
+	matrix sigma(num_CS,1);
+	matrix sHs = trans(delta)*Y*delta + 1;
+	double dHd = sHs(0, 0);
+	for (unsigned i = 0; i < num_CS;i++)
+	{
+		sigma(i) = std::min(miu(i),nit*pow(miu(i),0.5));
+		miu(i) = std::min(1e9, 2 * num_CS*
+			(qp_lamda(i) - lamda(i))*(qp_lamda(i) - lamda(i)) / dHd);
+		miu(i) = std::max(sigma(i), miu(i));
+	}
+}
+
+template<typename simulator>
+void SQP<simulator>::get_Hessian(
+	const matrix& delta,
+	 matrix&gamma
+	)
+{
+	double theta = 0;
+	if (been_used == false)
+	{
+		been_used = true;
+		Y = dlib::identity_matrix<double>(delta.size());
+	}
+	else
+	{
+		double dg = dot(delta, gamma);
+		matrix	dHd_m = trans(delta)*Y*delta;
+		matrix  Hd = Y*delta;
+		double dHd = dHd_m(0, 0);
+		if (powell_BFGS)
+		{
+			if (dg > 0.2*dHd)
+				theta = 1;
+			else
+				theta = (0.8*dHd) / (dHd - dg);
+			gamma = theta*gamma + (1 - theta)*Hd;
+		}
+		if (dot(delta, gamma)>0)
+			Y = Y + gamma*trans(gamma) / dg - (Hd*trans(Hd)) / dHd;
+	}
 }

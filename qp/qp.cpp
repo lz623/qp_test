@@ -71,6 +71,7 @@ public:
 	const dlib::matrix<double> grad(const dlib::matrix<double>& m){
 		const double x = m(0, 0);
 		const double y = m(1, 0);
+		f_value=run(m);
 		dlib::matrix<double> res(2, 1);
 		res(0, 0) = -400 * x*(y - x*x) - 2 * (1 - x); // derivative of rosen() with respect to x
 		res(1, 0) = 200 * (y - x*x);              // derivative of rosen() with respect to y
@@ -84,7 +85,7 @@ public:
 		CS_gradient.resize(num_Cs);
 		for (unsigned i = 0; i <CS_gradient.size(); i++){
 			CS_gradient[i].set_size(num_Var, 1);
-			for (unsigned j = 0; j < num_Var; j++){
+			for (int j = 0; j < num_Var; j++){
 				input >> CS_gradient[i](j, 0);
 			}
 		}
@@ -92,14 +93,14 @@ public:
 	void compute_constrain(dlib::matrix<double> m)
 	{
 		//should include simulation run in reservoir simulator
-		for (unsigned i = 0; i < num_Cs; i++){
+		for (int i = 0; i < num_Cs; i++){
 			val(i) = (rowm(CS, i)*m + CS_val(i)) / abs(CS_range(i));
 		}
 	}
 	dlib::matrix<double> val;
 	std::vector<dlib::matrix<double>> CS_gradient;
+	double f_value;
 };
-
 
 
 
@@ -111,7 +112,9 @@ int main() {
 	dlib::matrix<double> result = test.larangian_funct();
 	std::cout << result << std::endl;
 	// by default, we have a nonnegative QP with Ax <= b
-
+	dlib::matrix<int> i(1,1);
+	i = 0;
+	std::cout << (result,0);
 	SQP<rosen_model> sqp_solver(starting_point,4);
 	std::cout << sqp_solver.solve_SQP();
 
