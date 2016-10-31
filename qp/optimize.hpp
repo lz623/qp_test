@@ -14,6 +14,8 @@ class optimization
 public:
 	optimization()
 	{
+		output1.open("output/AL/obj.dat", std::ios::app);
+		output2.open("output/AL/iterpoint.dat", std::ios::app);
 		min_alpha = 1e-8;
 	};
 
@@ -33,8 +35,7 @@ public:
 	bool & is_output
 	)
 	{
-		//output1.open("output/obj.dat", ios::app);
-		//output2.open("output/iterpoint.dat", ios::app);
+
 		T g, s;
 		double f_value = model.constrain_funct(x);
 		g = model.constrain_grad(x);
@@ -58,14 +59,10 @@ public:
 			// Take the search step indicated by the above line search
 			x += alpha*s;
 			g = model.constrain_grad(x);
-			//if (is_output){
-			//	std::cout << (stop_strategy.should_continue_search(x, f_value, g)
-			//		|| stop_strategy_1.should_continue_search(x, f_value, g)) << std::endl;
-			//	std::cout << "x: " << trans(x) << std::endl;
-			//	std::cout << "g: " << trans(g) << std::endl;
-			//	std::cout << "f_value: " << f_value << std::endl;
-			//	std::cout << "-----------------------------------------------------------" << std::endl;
-			//}
+			if (is_output){
+				output1 << f_value << std::endl;
+				output2 << trans(x) << std::endl;
+			}
 		}
 		return f_value;
 	}
@@ -278,7 +275,7 @@ public:
 //
 private:
 	double min_alpha;
-//	std::ofstream output1;
-//	std::ofstream output2;
+	std::ofstream output1;
+	std::ofstream output2;
 
 };

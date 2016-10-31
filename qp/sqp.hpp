@@ -10,11 +10,11 @@ class SQP
 {
 	typedef dlib::matrix<double> matrix;
 private:
+	std::ofstream outf;
 	unsigned num_Var, num_CS;
 	matrix lamda,qp_lamda,miu ,x;
 	simulator model;
 	QP_problem qp_solver;
-	dlib::bfgs_search_strategy  BFGS;
 	dlib::x_delta_stop_strategy stop_criterion;
 	std::vector<int> active_index, inactive_index, mactive_index, minactive_index;
 	matrix delta,gamma;
@@ -45,11 +45,14 @@ private:
 	void compute_penelty();
 	void get_Hessian(const matrix& delta, matrix& gamma);
 	void initial_Hessian();
+	void dump_result(int iter_index);
+	void out_inform();
 public:
 	SQP(matrix &startpoint, unsigned ncs, double conc = 1e-5, bool output_flag = false, bool powell_flag = true)
 		:num_Var(startpoint.nr()), num_CS(ncs), x(startpoint), qp_solver(startpoint.nr(), ncs),
 		model(startpoint.nr(), ncs), stop_criterion(conc), output_res(output_flag), powell_BFGS(powell_flag)
 	{
+		outf.open("output/SQP/f.dat");
 		initial_parameters();
 	}
 
@@ -91,7 +94,6 @@ matrix SQP<simulator>::constrain_grad(const matrix &x,double &f_value)
 	f_value = f_original + constrain_funct(x);
 	gamma = g - g_old;
 	grad = g;
-	std::cout << "qp_lamda: " << std::endl << qp_lamda << std::endl;
 	for (unsigned i = 0; i < num_CS; i++){
 		if (model.val(i) < 0){
 			grad += -qp_lamda(i)*model.CS_gradient[i];
@@ -122,6 +124,25 @@ double SQP<simulator>::constrain_funct(double fvalue)
 	return result;
 }
 
+template<typename simulator>
+void SQP<simulator>::out_inform()
+{
+	outf << f_value << std::endl;
+}
+
+
+template<typename simulator>
+void SQP<simulator>::dump_result(int iter_index)
+{
+	std::string filename = "output/SQP/", filex, filelamda;
+	filex = filename + "x" + std::to_string(iter_index) + ".dat";
+	filelamda = filename + "lamda" + std::to_string(iter_index) + ".dat";
+	std::ofstream outx(filex), outl(filelamda);
+	outx << x << std::endl;
+	outl << lamda << std::endl;
+	outx.close();
+	outl.close();
+}
 
 template<typename simulator>
 void SQP<simulator>::update_lamda(matrix &lamda)
@@ -253,10 +274,10 @@ matrix SQP<simulator>::solve_SQP(){
 		delta = alpha*delta;
 		x = x + delta;
 		grad = constrain_grad(x, f_value);
-		//std::cout << "cs:" << std::endl << model.val << std::endl;
-		//std::cout << "delta:" << std::endl << delta << std::endl;
-		//std::cout << "gamma:" << std::endl << gamma << std::endl;
 		get_Hessian(delta, gamma);
+		out_inform();
+		dump_result(int(nit));
+		nit++;
 		//std::cout << i++ << std::endl << z_value << std::endl;
 	}
 	return x;
@@ -402,8 +423,8 @@ void SQP<simulator>::get_Hessian(
 				theta = (0.8*dHd) / (dHd - dg);
 			gamma = theta*gamma + (1 - theta)*Hd;
 		}
-		std::cout << "delta " << std::endl << delta << std::endl;
-		std::cout << "gamma: " << std::endl << gamma << std::endl;
+		//std::cout << "delta " << std::endl << delta << std::endl;
+		//std::cout << "gamma: " << std::endl << gamma << std::endl;
 		//std::cout << "Hd: " << std::endl << Hd << std::endl;
 		//std::cout << "dg " << std::endl << dg << std::endl;
 		if (dot(delta, gamma)>0)

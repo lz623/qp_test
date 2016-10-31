@@ -19,6 +19,7 @@ class AL
 	typedef const dlib::matrix<double> (constrain_fun::*gradprt)(const dlib::matrix<double> &x);
 private:
 	matrix  lamda, sign_val; //constrain information
+	std::ofstream outf, outp, outcv;
 	simulator model;
 	optimization opt;
 /////////////////////////////////////////////constant parameters//////////////////////////////////
@@ -33,9 +34,11 @@ private:
 /////////////////////////////////////////////modified parameters//////////////////////////////////
 	double miu, eta0, alpha_bar = 0.1;
 	double eta, omega_f, omega_x, delta_cv;
+	double f;
 	matrix x;
 	//fun cs_fun = &constrain_fun::constrain_funct;
-
+	void dump_result(int& iter_index);
+	void out_inform();
 	double compute_constrain(const matrix &x);
 
 	void initial_parameter();
@@ -77,18 +80,43 @@ template<typename simulator>
 	
 	result = model.run(x);
 	result += compute_constrain(x);
+	f = result;
 	return result;
 }
+ template<typename simulator>
+ void AL<simulator>::out_inform()
+ {
+	 outf << f << std::endl;
+	 outcv << delta_cv << std::endl;
+	 outp << miu << std::endl;
+ }
 
 
-
-
+ template<typename simulator>
+ void AL<simulator>::dump_result(int& iter_index)
+ {
+	 std::string filename = "output/AL/", filex, filep, filelamda;
+	 filex = filename +"x"+ std::to_string(iter_index)+".dat";
+	 filelamda = filename + "lamda" + std::to_string(iter_index) + ".dat";
+	 std::ofstream outx(filex) ,outl(filelamda);
+	 outx << x << std::endl;
+	 outl << lamda << std::endl;
+	 outx.close();
+	 outl.close();
+ }
 
 
 template<typename simulator>
 void AL<simulator>::initial_parameter()
 {
-	////////////////////////////////////////////should modify /////////////////////////////////////////!!!!!!!!!!!!!!!!!!!
+	outf.open("output/AL/obj.dat");
+	outp.open("output/AL/iterpoint.dat");
+	outf.close();
+	outp.close();
+	outf.open("output/AL/f.dat");
+	outcv.open("output/AL/cv.dat");
+	outp.open("output/AL/pena.dat");
+	////////////////////////////////////////////should modify ////////////////////////////////////////bad comments don't know how to modify wasting time
 	lamda.set_size(num_CS, 1); lamda = 0;
 	//initial miu;
 	sign_val.set_size(num_CS, 1);
@@ -145,6 +173,7 @@ double AL<simulator>::compute_validation()
 template<typename simulator>
 dlib::matrix<double>  AL<simulator>::larangian_funct()
 {
+	int nit = 0;
 	while (1){
 		opt.find_min_new(dlib::bfgs_search_strategy(),
 			dlib::objective_delta_stop_strategy(omega_f),
@@ -166,9 +195,18 @@ dlib::matrix<double>  AL<simulator>::larangian_funct()
 			update_larange_miu();
 			//update miu with large violation
 		}
+		nit++;
+		out_inform();
+		std::cout << x << std::endl;
+		if (output_flag)
+		{
+			dump_result(nit);
+		}
 	}
-
+	outf.close(), outp.close(), outcv.close();
 }
+
+
 
 
 ///////////////////////////////////////////////////////////should delete real version//////////////////////////////////////////////////////////////

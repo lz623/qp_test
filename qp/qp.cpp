@@ -125,19 +125,19 @@ public:
 
 int main() {
 	dlib::matrix<double> starting_point(2, 1);
-	starting_point(0, 0) = -3; // Start with a valid point inside the constraint box.
+	starting_point(0, 0) = -2.5; // Start with a valid point inside the constraint box.
 	starting_point(1, 0) = 0.8;
-	AL<rosen_model> test(starting_point, 2, 1);
-	dlib::matrix<double> result = test.larangian_funct();
+	AL<rosen_model> Al(starting_point, 2, 1);
+	dlib::matrix<double> result = Al.larangian_funct();
 	std::cout << result << std::endl;
 	//// by default, we have a nonnegative QP with Ax <= b
 	//dlib::matrix<int> i(1,1);
 	//i = 0;
 	//std::cout << (result,0);
-	starting_point(0, 0) = -3; // Start with a valid point inside the constraint box.
-	starting_point(1, 0) = 0.8;
-	SQP<rosen_model> sqp_solver(starting_point,2);
-	std::cout << sqp_solver.solve_SQP_new();
+	starting_point(0, 0) = -4; // Start with a valid point inside the constraint box.
+	starting_point(1, 0) = -0.8;
+	SQP<rosen_model> sqp_solver(starting_point,2,1e-5,true);
+	std::cout << sqp_solver.solve_SQP();
 	// solve the program, using ET as the exact type
 
 	// output solution
